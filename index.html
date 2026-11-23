@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repaso de Java: procesos, hilos y sincronización</title>
+<style>
+:root{--fondo:#f3f5f9;--tarjeta:#fff;--texto:#202938;--suave:#657184;--azul:#315ee8;--borde:#dce2ec;--verde:#16834b;--rojo:#c43d45}
+*{box-sizing:border-box}body{margin:0;background:var(--fondo);font-family:Arial,sans-serif;color:var(--texto);line-height:1.5}
+main{max-width:850px;margin:32px auto;padding:0 16px 40px}.cabecera{margin-bottom:20px}
+h1{font-size:clamp(25px,4vw,36px);margin:0 0 8px}.sub{color:var(--suave);margin:0}
+.panel,.quiz,.resultado{background:var(--tarjeta);border:1px solid var(--borde);border-radius:16px;padding:22px;box-shadow:0 5px 20px #1d2b4410}
+.panel{margin-bottom:18px}.controles{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button,select{font:inherit;border-radius:10px;padding:10px 14px;border:1px solid var(--borde);background:white;color:var(--texto);cursor:pointer}
+button.principal{background:var(--azul);color:white;border-color:var(--azul)}button:disabled{opacity:.5;cursor:not-allowed}
+select{min-width:190px}.progreso{height:9px;background:#e9edf5;border-radius:20px;overflow:hidden;margin:14px 0 6px}.barra{height:100%;width:0;background:var(--azul);transition:width .2s}
+.meta{display:flex;justify-content:space-between;color:var(--suave);font-size:14px}
+.etiqueta{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--azul);font-weight:bold}
+h2{font-size:21px;margin:8px 0 18px}.opciones{display:grid;gap:10px}
+.opcion{display:flex;text-align:left;align-items:flex-start;gap:12px;width:100%;padding:13px;border:1px solid var(--borde);border-radius:12px;background:#fff}
+.letra{font-weight:bold;background:#edf1fb;color:#294fce;border-radius:8px;padding:2px 9px;min-width:30px;text-align:center}
+.opcion.correcta{border-color:var(--verde);background:#effaf4}.opcion.incorrecta{border-color:var(--rojo);background:#fff2f2}
+.feedback{margin-top:15px;padding:13px;border-radius:10px;display:none}.feedback.ok{display:block;background:#effaf4;color:#12683c}.feedback.no{display:block;background:#fff2f2;color:#9d2930}
+.pie{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:18px;flex-wrap:wrap}
+.resultado{display:none;margin-top:18px}.resultado h2{margin-top:0}.pequeno{font-size:14px;color:var(--suave)}
+@media(max-width:560px){main{margin:18px auto}.panel,.quiz,.resultado{padding:17px}.meta{gap:8px}}
+</style>
+</head>
+<body>
+<main>
+ <header class="cabecera">
+  <h1>Repaso de Java: procesos, hilos y sincronización</h1>
+  <p class="sub">Preguntas tipo test basadas en los apuntes. Las preguntas y las respuestas se mezclan para que la solución no esté siempre en la misma letra.</p>
+ </header>
+ <section class="panel">
+  <div class="controles">
+   <label for="tema"><strong>Bloque:</strong></label>
+   <select id="tema">
+    <option value="todos">Todos los contenidos</option>
+    <option value="Procesos">Procesos y servicios</option>
+    <option value="Hilos">Concurrencia e hilos</option>
+    <option value="Sincronización">Sincronización</option>
+    <option value="Coordinación">Coordinación y parada</option>
+   </select>
+   <button class="principal" id="reiniciar">Nuevo test / mezclar</button>
+  </div>
+  <div class="progreso"><div class="barra" id="barra"></div></div>
+  <div class="meta"><span id="contador">Pregunta 1</span><span id="puntuacion">Aciertos: 0</span></div>
+ </section>
+ <section class="quiz" id="quiz">
+  <div class="etiqueta" id="categoria"></div>
+  <h2 id="pregunta"></h2>
+  <div class="opciones" id="opciones"></div>
+  <div class="feedback" id="feedback" aria-live="polite"></div>
+  <div class="pie">
+   <span class="pequeno" id="estado">Selecciona una respuesta.</span>
+   <button class="principal" id="siguiente" disabled>Siguiente pregunta</button>
+  </div>
+ </section>
+ <section class="resultado" id="resultado">
+  <h2>¡Test terminado!</h2><p id="resumen"></p>
+  <div class="controles"><button class="principal" id="otra">Repetir mezclando preguntas</button><button id="falladas">Practicar las falladas</button></div>
+  <p class="pequeno">Consejo: vuelve a hacer el test hasta que puedas explicar por qué cada opción correcta lo es.</p>
+ </section>
+</main>
+<script>
+const banco = [
+{t:"Procesos",q:"¿Qué es un proceso?",o:["Un programa que está en ejecución","Un archivo guardado en el disco","Una instrucción aislada de la CPU"],a:0,e:"Un proceso es un programa en ejecución."},
+{t:"Procesos",q:"¿Qué identifica de forma única a un proceso?",o:["JVM","PID","RAM"],a:1,e:"PID significa identificador único del proceso."},
+{t:"Procesos",q:"¿Qué implica la ejecución de un proceso?",o:["Solo reservar espacio en disco","Reservar memoria, utilizar CPU y cambiar estados","Crear siempre un hilo nuevo"],a:1,e:"El proceso necesita memoria de trabajo, carga para el procesador y cambia de estado."},
+{t:"Procesos",q:"¿En qué estado está un proceso recién creado?",o:["Bloqueado","Listo","Nuevo"],a:2,e:"El estado Nuevo corresponde al proceso que acaba de ser creado."},
+{t:"Procesos",q:"¿Qué estado indica que el proceso está usando la CPU en ese instante?",o:["En ejecución","Preparado","Terminado"],a:0,e:"En ejecución significa que el procesador está ejecutando sus instrucciones."},
+{t:"Procesos",q:"Un proceso preparado o listo...",o:["Ha finalizado","Está preparado y espera su turno de CPU","Está retenido por una causa"],a:1,e:"Está preparado para ejecutarse, pero espera a que le toque utilizar la CPU."},
+{t:"Procesos",q:"¿Cuándo está bloqueado un proceso?",o:["Cuando espera por una causa que le impide continuar","Cuando acaba correctamente","Cuando acaba de crearse"],a:0,e:"Puede quedar bloqueado, por ejemplo, al esperar un recurso ocupado."},
+{t:"Procesos",q:"¿Qué sucede en el estado Terminado?",o:["Espera turno de CPU","El proceso ha finalizado y libera recursos","Está ejecutando instrucciones"],a:1,e:"Al terminar, se liberan los recursos del sistema que consumía."},
+{t:"Procesos",q:"¿Cómo se llama desalojar un proceso de la CPU para que empiece otro?",o:["Cambio de contexto","Sincronización","Reanudación"],a:0,e:"La operación se denomina cambio de contexto."},
+{t:"Procesos",q:"¿Qué es un servicio?",o:["Un proceso que solo se ejecuta cuando se abre una ventana","Un proceso que puede ejecutarse en segundo plano esperando ser llamado","Un tipo especial de hilo"],a:1,e:"Los servicios suelen ejecutarse sin intervención consciente del usuario."},
+{t:"Procesos",q:"¿Qué acción permite volver a poner en marcha un servicio detenido?",o:["Reanudar","Compilar","Bloquear"],a:0,e:"Entre las operaciones indicadas para los servicios están iniciar, detener y reanudar."},
+{t:"Procesos",q:"¿Cuál es una característica de un proceso frente a un hilo?",o:["Comparte siempre toda su memoria con otros procesos","Tiene su propio entorno, recursos y espacio de memoria","No lo gestiona el sistema operativo"],a:1,e:"Cada proceso dispone de su propio entorno y espacio de memoria."},
+{t:"Procesos",q:"Los hilos creados dentro del mismo proceso...",o:["Comparten recursos, incluida la memoria","Tienen siempre espacios de memoria independientes","Son procesos pesados"],a:0,e:"Los threads de un mismo proceso comparten recursos."},
+{t:"Procesos",q:"En comparación con el cambio entre procesos, el cambio entre hilos suele ser...",o:["Más lento","Igual siempre","Más rápido"],a:2,e:"El cambio de contexto entre hilos es más rápido."},
+{t:"Hilos",q:"¿Cuál es la clase base de Java para definir hilos en los apuntes?",o:["Process","Thread","Runnable"],a:1,e:"Thread es la clase base para definir hilos concurrentes."},
+{t:"Hilos",q:"Si una clase extiende Thread, ¿qué método debe redefinir para indicar la tarea?",o:["start()","join()","run()"],a:2,e:"El método run() contiene el trabajo que realizará el hilo."},
+{t:"Hilos",q:"¿Qué método se utiliza para iniciar realmente la ejecución concurrente de un hilo?",o:["start()","run()","sleep()"],a:0,e:"start() inicia el hilo y provoca la ejecución de run() en paralelo."},
+{t:"Hilos",q:"¿Qué ocurre al llamar a start()?",o:["El hilo termina inmediatamente","Se invoca run() en un nuevo flujo y se devuelve el control","Se ejecuta run() como una llamada normal y bloqueante"],a:1,e:"start() inicia la ejecución concurrente y devuelve inmediatamente el control."},
+{t:"Hilos",q:"¿Qué ocurre si llamamos directamente a run() en vez de start()?",o:["Se crea automáticamente otro hilo","El hilo se ejecuta en paralelo","Se ejecuta como una llamada normal, sin iniciar otro hilo"],a:2,e:"La ejecución directa de run() no lanza un nuevo hilo; se comporta como una llamada normal."},
+{t:"Hilos",q:"¿Qué contiene normalmente el método run()?",o:["La tarea que debe realizar el hilo","El identificador PID del proceso","La creación del sistema operativo"],a:0,e:"run() especifica realmente la tarea concurrente."},
+{t:"Hilos",q:"¿Qué método puede detener temporalmente un hilo durante un tiempo?",o:["notify()","sleep()","start()"],a:1,e:"sleep() hace que el hilo duerma durante un intervalo."},
+{t:"Hilos",q:"¿Qué excepción puede producirse al usar sleep()?",o:["IOException","SQLException","InterruptedException"],a:2,e:"InterruptedException puede lanzarse si el hilo es interrumpido mientras duerme."},
+{t:"Hilos",q:"¿Qué ocurre con las prioridades de los hilos según los apuntes?",o:["El JRE selecciona para ejecutar el hilo ejecutable de mayor prioridad","Siempre se ejecuta primero el hilo más antiguo","La prioridad no influye nunca"],a:0,e:"El JRE selecciona en cada instante un hilo ejecutable con prioridad más alta."},
+{t:"Hilos",q:"Si dos hilos tienen la misma prioridad, la selección es...",o:["Siempre alfabética","Arbitraria","Siempre por orden de creación"],a:1,e:"A igualdad de prioridad, la selección es arbitraria."},
+{t:"Hilos",q:"¿Qué métodos permiten modificar y consultar la prioridad?",o:["sleep() y wait()","run() y start()","setPriority() y getPriority()"],a:2,e:"setPriority() cambia la prioridad y getPriority() la consulta."},
+{t:"Hilos",q:"¿Qué es el time slicing?",o:["Asignar intervalos de tiempo de CPU a diferentes hilos","Eliminar los hilos de baja prioridad","Compartir el disco entre procesos"],a:0,e:"Es el reparto del tiempo de CPU entre hilos."},
+{t:"Hilos",q:"¿Qué método estático permite que un hilo ceda su tiempo de CPU?",o:["wait()","yield()","notify()"],a:1,e:"yield() permite ceder voluntariamente el tiempo de CPU."},
+{t:"Hilos",q:"¿Qué significa que un hilo esté en estado Nuevo?",o:["Está esperando una notificación","Está ejecutándose","Ha sido creado pero todavía no se ha iniciado"],a:2,e:"Nuevo es el estado anterior al inicio del hilo."},
+{t:"Hilos",q:"¿Para qué sirve implementar Runnable?",o:["Para definir una tarea ejecutable sin tener que heredar de Thread","Para bloquear todos los métodos","Para crear un proceso del sistema operativo"],a:0,e:"Runnable permite definir la tarea y deja libre la herencia de otra clase."},
+{t:"Hilos",q:"Si una clase implementa Runnable, ¿cómo se inicia su tarea?",o:["Llamando directamente a start() sobre el objeto Runnable","Creando un Thread con ese Runnable y llamando a start()","Llamando a notify()"],a:1,e:"El objeto Runnable no es un Thread; se pasa a un Thread y se inicia este."},
+{t:"Hilos",q:"¿Cuál es una ventaja de Runnable frente a extender Thread?",o:["Evita tener que escribir run()","Permite que el hilo no tenga tarea","Permite que la clase herede de otra clase además de implementar Runnable"],a:2,e:"Java solo permite heredar de una clase, por lo que Runnable es útil si ya se extiende otra."},
+{t:"Sincronización",q:"¿Qué problema pretende evitar la sincronización de hilos?",o:["Que varios hilos accedan de forma conflictiva a un recurso compartido","Que un programa tenga métodos","Que el hilo principal termine"],a:0,e:"La sincronización coordina el acceso concurrente a recursos compartidos."},
+{t:"Sincronización",q:"¿Qué objeto tiene asociado un monitor en Java?",o:["Solo los objetos Thread","Todos los objetos","Solo los objetos String"],a:1,e:"Java asocia un monitor a todos los objetos."},
+{t:"Sincronización",q:"¿Para qué sirve synchronized?",o:["Para crear un proceso nuevo","Para terminar un hilo","Para asegurar el acceso exclusivo a un método o bloque protegido"],a:2,e:"Solo un hilo puede mantener el bloqueo del objeto y ejecutar esa sección sincronizada a la vez."},
+{t:"Sincronización",q:"¿Qué dos formas de utilizar synchronized aparecen en los apuntes?",o:["Bloques sincronizados y métodos sincronizados","Clases sincronizadas y paquetes sincronizados","Hilos sincronizados y procesos sincronizados"],a:0,e:"Se puede sincronizar un bloque concreto o declarar un método synchronized."},
+{t:"Sincronización",q:"¿Qué es el objeto utilizado en synchronized(objeto)?",o:["Un PID","El objeto de monitorización o bloqueo","El hilo principal"],a:1,e:"Los hilos deben adquirir el bloqueo de ese objeto antes de entrar en el bloque."},
+{t:"Sincronización",q:"¿Qué ocurre cuando un hilo entra en un bloque synchronized sobre un objeto?",o:["Todos los hilos entran a la vez","Se destruye el objeto","Adquiere el bloqueo; otro hilo debe esperar para entrar en esa sección"],a:2,e:"El bloqueo garantiza que solo un hilo ejecute esa sección protegida a la vez."},
+{t:"Sincronización",q:"¿Qué hace un método declarado como public synchronized?",o:["Adquiere automáticamente el bloqueo asociado al objeto al invocarlo","Se ejecuta siempre en el hilo principal","No permite que se invoque"],a:0,e:"El método sincronizado adquiere el bloqueo del objeto sobre el que se llama."},
+{t:"Sincronización",q:"¿Qué hace wait()?",o:["Despierta a todos los hilos","Hace que el hilo actual espere hasta recibir una notificación","Inicia un hilo nuevo"],a:1,e:"wait() deja al hilo esperando a que otro notifique sobre el mismo objeto."},
+{t:"Sincronización",q:"¿Qué hace notify()?",o:["Detiene definitivamente el programa","Libera la CPU para siempre","Notifica y activa un hilo que está esperando en ese objeto"],a:2,e:"notify() despierta a un hilo que está esperando en el monitor."},
+{t:"Sincronización",q:"¿Dónde están asociados wait() y notify() según los apuntes?",o:["En la clase Object","En la clase ProcessBuilder","En la clase Math"],a:0,e:"La clase Object proporciona el monitor y las operaciones wait() y notify()."},
+{t:"Sincronización",q:"En el ejemplo de la cola monitorizada, ¿qué hace el productor?",o:["Extrae datos del buffer","Almacena datos en el buffer","Detiene a los consumidores"],a:1,e:"El productor genera enteros y los almacena en el buffer."},
+{t:"Sincronización",q:"En el ejemplo de la cola monitorizada, ¿qué hace el consumidor?",o:["Crea el buffer","Aumenta el tamaño del buffer","Extrae datos del buffer"],a:2,e:"El consumidor obtiene datos almacenados y los muestra."},
+{t:"Sincronización",q:"En una cola monitorizada llena, ¿qué hace almacenar()?",o:["Espera con wait() hasta que haya espacio","Sobrescribe siempre los datos","Finaliza todos los hilos"],a:0,e:"El productor espera si el número de elementos alcanza el tamaño máximo."},
+{t:"Sincronización",q:"En una cola monitorizada vacía, ¿qué hace extraer()?",o:["Devuelve siempre cero","Espera con wait() hasta que haya datos","Crea otro buffer"],a:1,e:"El consumidor espera si no hay datos disponibles."},
+{t:"Coordinación",q:"¿Para qué sirve join()?",o:["Para cambiar la prioridad","Para bloquear todos los objetos","Para esperar a que otro hilo termine su ejecución"],a:2,e:"El hilo que llama a h.join() espera a que el hilo h finalice run()."},
+{t:"Coordinación",q:"¿En qué situaciones resulta útil join()?",o:["Cuando una parte secuencial del programa debe esperar a que acabe una tarea concurrente","Para iniciar un hilo","Para sustituir a synchronized"],a:0,e:"join() permite reunir tareas concurrentes antes de continuar con el código secuencial."},
+{t:"Coordinación",q:"¿Qué método se utiliza para solicitar una parada limpia de un hilo en el ejemplo Java?",o:["stop()","interrupt()","destroy()"],a:1,e:"interrupt() notifica al hilo que debe detenerse; no lo mata directamente."},
+{t:"Coordinación",q:"¿Qué método permite comprobar la bandera de interrupción de un hilo?",o:["isAlive()","getName()","isInterrupted()"],a:2,e:"isInterrupted() permite comprobar si el hilo ha sido interrumpido."},
+{t:"Coordinación",q:"¿Por qué interrupt() no equivale a matar directamente un hilo?",o:["Porque envía una señal y el propio hilo debe responder de forma controlada","Porque solo funciona en procesos","Porque pausa el ordenador"],a:0,e:"La parada limpia se diseña para que el hilo detecte la interrupción y salga del bucle."},
+{t:"Coordinación",q:"En el ejemplo de parada limpia, ¿qué condición controla el bucle?",o:["while(true) sin comprobaciones","while(!isInterrupted())","while(isInterrupted())"],a:1,e:"El bucle continúa mientras el hilo no haya sido interrumpido."},
+{t:"Coordinación",q:"¿Qué ocurre si se interrumpe un hilo mientras está dentro de Thread.sleep()?",o:["Se ejecuta start() otra vez","Se ignora siempre la interrupción","Puede lanzarse InterruptedException"],a:2,e:"sleep() puede lanzar InterruptedException al recibir una interrupción."},
+{t:"Coordinación",q:"¿Para qué se utiliza finally en el ejemplo de parada limpia?",o:["Para ejecutar el cierre/limpieza antes de salir, ocurra o no una excepción","Para iniciar el hilo","Para capturar el PID"],a:0,e:"finally se ejecuta al salir del bloque try/catch y permite finalizar ordenadamente."},
+{t:"Coordinación",q:"¿Qué garantiza t.join() en el ejemplo de parada limpia?",o:["Que el hilo trabaje tres segundos más","Que main espere a que el hilo termine","Que el hilo reinicie su ejecución"],a:1,e:"join() hace que el programa principal espere a que Trabajador finalice."},
+{t:"Procesos",q:"¿Qué clase de Java aparece en los apuntes para lanzar procesos externos?",o:["ThreadBuilder","Runnable","ProcessBuilder"],a:2,e:"ProcessBuilder permite configurar e iniciar procesos externos mediante start()."},
+{t:"Procesos",q:"¿Qué método de ProcessBuilder inicia el proceso?",o:["start()","run()","join()"],a:0,e:"En el ejemplo, se crea ProcessBuilder y se llama a pb.start()."}
+];
+
+let preguntas=[], indice=0, aciertos=0, falladas=[], respondida=false;
+const $=id=>document.getElementById(id);
+function mezclar(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function empezar(soloFalladas=false){
+ let tema=$("tema").value;
+ let base=soloFalladas?falladas.slice():banco.filter(x=>tema==="todos"||x.t===tema);
+ preguntas=mezclar(base.map(x=>({...x,opciones:mezclar(x.o.map((txt,i)=>({txt,ok:i===x.a})))})));
+ indice=0;aciertos=0;falladas=[];$("resultado").style.display="none";$("quiz").style.display="block";pintar();
+}
+function pintar(){
+ respondida=false;let p=preguntas[indice];
+ $("categoria").textContent=p.t;$("pregunta").textContent=p.q;$("opciones").innerHTML="";
+ $("feedback").className="feedback";$("feedback").textContent="";$("estado").textContent="Selecciona una respuesta.";
+ $("siguiente").disabled=true;$("siguiente").textContent=indice===preguntas.length-1?"Ver resultado":"Siguiente pregunta";
+ p.opciones.forEach((op,i)=>{let b=document.createElement("button");b.className="opcion";b.innerHTML='<span class="letra">'+String.fromCharCode(65+i)+'</span><span></span>';b.querySelector("span:last-child").textContent=op.txt;b.onclick=()=>responder(i);$("opciones").appendChild(b);});
+ $("contador").textContent=`Pregunta ${indice+1} de ${preguntas.length}`;$("puntuacion").textContent=`Aciertos: ${aciertos}`;$("barra").style.width=`${indice/preguntas.length*100}%`;
+}
+function responder(i){
+ if(respondida)return;respondida=true;let p=preguntas[indice],ok=p.opciones[i].ok;
+ if(ok)aciertos++;else falladas.push(p);
+ [...$("opciones").children].forEach((b,j)=>{b.disabled=true;if(p.opciones[j].ok)b.classList.add("correcta");else if(j===i)b.classList.add("incorrecta");});
+ $("feedback").className="feedback "+(ok?"ok":"no");
+ $("feedback").textContent=(ok?"¡Correcto! ":"No es correcto. ")+p.e;
+ $("estado").textContent=ok?"Respuesta acertada":"La respuesta correcta está marcada en verde.";
+ $("siguiente").disabled=false;$("puntuacion").textContent=`Aciertos: ${aciertos}`;
+}
+function avanzar(){if(!respondida)return;if(indice<preguntas.length-1){indice++;pintar();}else{fin();}}
+function fin(){
+ $("quiz").style.display="none";$("resultado").style.display="block";$("barra").style.width="100%";
+ let nota=Math.round(aciertos/preguntas.length*100);
+ $("resumen").textContent=`Has acertado ${aciertos} de ${preguntas.length} preguntas (${nota}%). ${nota>=80?"¡Muy buen repaso!":nota>=60?"Vas bien, pero repasa las que has fallado.":"Te conviene repetir el test y revisar las explicaciones."}`;
+ $("falladas").disabled=falladas.length===0;
+}
+$("reiniciar").onclick=()=>empezar();$("otra").onclick=()=>empezar();$("falladas").onclick=()=>empezar(true);$("siguiente").onclick=avanzar;
+empezar();
+</script>
+</body>
+</html>
